@@ -1,0 +1,74 @@
+---
+- name: install nop commerce
+  become: yes
+  hosts: all
+  tasks:
+  - name: download the debian file
+    get_url:
+      url: https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb
+      dest: /tmp/packages-microsoft-prod.deb
+  - name: install the debian package
+    apt:
+      deb: /tmp/packages-microsoft-prod.deb
+  - name: install .net core runtimes
+    apt:
+      name: "{{item}}"
+      update_cache: yes
+      state: present
+    with_items:
+     - apt-transport-https
+     - aspnetcore-runtime-6.0
+  - name: ensure nginx latest version
+    apt:
+      name: nginx
+      state: latest
+      update_cache: yes
+  - name: copy the nginx default service file
+    ansible.builtin.template:
+      src: 'nginx.data.j2'
+      dest: /etc/nginx/sites-available/default
+    notify:
+      - reload the daemon, enable and start the nginx service
+  - name: Create a directory if it does not exist
+    ansible.builtin.file:
+      path: "{{item}}"
+      state: directory
+      recurse: yes
+    loop:
+      - /var/www/nopCommerce450
+      - /var/www/nopCommerce450/bin
+      - /var/www/nopCommerce450/logs
+  - name: Download nopCommerce450
+    ansible.builtin.get_url:
+      url: "https://github.com/nopSolutions/nopCommerce/releases/download/release-4.50.2/nopCommerce_4.50.2_NoSource_linux_x64.zip"
+      dest: "/var/www/nopCommerce450/nopCommerce_4.50.2_NoSource_linux_x64.zip"
+  - name: install unzip
+    ansible.builtin.apt:
+      name: unzip
+      update_cache: yes
+      state: present
+  - name: Extract nopCommerce450
+    ansible.builtin.unarchive:
+      src: "/var/www/nopCommerce450/nopCommerce_4.50.2_NoSource_linux_x64.zip"
+      dest: "/var/www/nopCommerce450"
+      remote_src: yes
+  - name: copy the nopcommerce450.service file
+    ansible.builtin.template:
+      src: 'nopcom.j2'
+      dest: /etc/systemd/system/nopCommerce450.service
+    notify:
+      - reload the daemon, enable and start the nopCommerce450 service
+  - name: Recursively change ownership of a directory
+    ansible.builtin.file:
+      path: /var/www/nopCommerce450
+      state: directory
+      recurse: yes
+      owner: www-data
+      group: www-data
+  handlers:
+  - name: reload the daemon, enable and start the nopCommerce450 service
+    ansible.builtin.systemd:
+      name: 'nopCommerce450.service'
+      daemon_reload: yes
+      enabled: yes
+      state: restarted
